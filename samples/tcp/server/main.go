@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	DefaultServerIP   = "127.0.0.1"
-	DefaultServerPort = "54321"
+	DefaultServerIP   = "0.0.0.0"
+	DefaultServerPort = "5565"
 	ServerType        = "tcp4"
 	BufferSize        = 2048
 )
