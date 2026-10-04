@@ -23,7 +23,7 @@ var (
 	DefaultServerPort = "54321"
 	ServerType        = "udp4"
 	BufferSize        = 2048
-	AppLayerProto     = "compnet-quic-sample"
+	AppLayerProto     = "jarkom-quic-sample-ghozam"
 	LogDir            = "logs"
 	SSLKeyLogFileName = "ssl-key.log"
 )
@@ -123,14 +123,15 @@ func main() {
 func connectionHandler(connection *quic.Conn) {
 	fmt.Printf("[quic] Receive connection from %s\n", connection.RemoteAddr())
 
-	stream, err := connection.AcceptStream(context.Background())
-	if err != nil {
-		return
+	for {
+		stream, err := connection.AcceptStream(context.Background())
+		if err != nil {
+			return
+		}
+
+		go streamHandler(connection.RemoteAddr(), stream)
 	}
-
-	go streamHandler(connection.RemoteAddr(), stream)
 }
-
 func streamHandler(remoteAddr net.Addr, stream *quic.Stream) {
 	defer stream.Close()
 

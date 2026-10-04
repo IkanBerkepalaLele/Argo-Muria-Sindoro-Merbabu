@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/quic-go/quic-go"
 	"github.com/quic-go/quic-go/qlog"
@@ -21,7 +22,7 @@ var (
 	DefaultServerPort = "54321"
 	ServerType        = "udp4"
 	BufferSize        = 2048
-	AppLayerProto     = "compnet-quic-sample"
+	AppLayerProto     = "jarkom-quic-sample-ghozam"
 	LogDir            = "logs"
 	SSLKeyLogFileName = "ssl-key.log"
 )
@@ -96,36 +97,57 @@ func main() {
 
 	fmt.Printf("[quic] Dialling from %s to %s\n", connection.LocalAddr(), connection.RemoteAddr())
 
-	fmt.Printf("[quic] Creating receive buffer of size %d\n", BufferSize)
-	receiveBuffer := make([]byte, BufferSize)
-
 	fmt.Printf("[quic] Input message to be sent to server: ")
 	message, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	stream, err := connection.OpenStreamSync(context.Background())
+	stream1, err := connection.OpenStreamSync(context.Background())
 	if err != nil {
 		log.Fatalln(err)
 	}
+
+	stream2, err := connection.OpenStreamSync(context.Background())
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go streamHelper(stream1, message, &wg)
+	go streamHelper(stream2, message, &wg)
+
+	wg.Wait()
+}
+
+func streamHelper(stream *quic.Stream, message string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	defer stream.Close()
 
-	fmt.Printf("[quic] Opened bidirectional stream %d to %s\n", stream.StreamID(), connection.RemoteAddr())
+	fmt.Printf("[quic] Opened bidirectional stream %d\n", stream.StreamID())
+	fmt.Printf("[quic] [Stream ID: %d] Sending message '%s'\n",
+		stream.StreamID(), message)
 
-	fmt.Printf("[quic] Sending message '%s' to server\n", message)
-	_, err = stream.Write([]byte(message))
+	_, err := stream.Write([]byte(message))
 	if err != nil {
-		log.Fatalln(err)
+		log.Printf("[quic] [Stream ID: %d] Write error: %v\n",
+			stream.StreamID(), err)
+		return
 	}
+
+	receiveBuffer := make([]byte, BufferSize)
 
 	receiveLength, err := stream.Read(receiveBuffer)
 	if err != nil && err != io.EOF {
-		log.Fatalln(err)
+		log.Printf("[quic] [Stream ID: %d] Read error: %v\n",
+			stream.StreamID(), err)
+		return
 	}
 
-	fmt.Printf("[quic] Received %d bytes of message from server\n", receiveLength)
-
 	response := string(receiveBuffer[:receiveLength])
-	fmt.Printf("[quic] Response from server: %s\n", response)
+
+	fmt.Printf("[quic] [Stream ID: %d] Response from server: %s\n",
+		stream.StreamID(), response)
 }
